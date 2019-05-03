@@ -1,3 +1,6 @@
+# Bulk of the queries are identical to accompanying jupyter notebook.
+# See that file for additional comments and analysis.
+
 # Dependencies
 import sqlalchemy
 from sqlalchemy.ext.automap import automap_base
@@ -22,6 +25,7 @@ Station = Base.classes.station
 app = Flask(__name__)
 
 @app.route("/")
+# Home Page
 def welcome():
     return (
         f"Welcome to my DU Climate Analysis API!<br/>"
@@ -35,31 +39,31 @@ def welcome():
 
 @app.route("/api/v1.0/precipitation")
 def precipitation():
-    # Precipitation query
+    # Precipitation data query - matches jupyter notebook
     session = Session(engine)
     prcp_table = (session
-                    .query(Measurement.date, func.sum(Measurement.prcp))
-                    .filter(Measurement.date >= '2016-08-23')
+                    .query(Measurement.date, Measurement.prcp)
+                    .filter(Measurement.date >= '2016-08-23') # Dates calculated in jupyter notebook
                     .filter(Measurement.date <= '2017-08-23')
-                    .group_by(Measurement.date)
                     .order_by(Measurement.date)
                     .all())
     prcp_df = pd.DataFrame(prcp_table, columns = ['Date', 'Precipitation'])
     prcp_df.set_index('Date', inplace = True)
 
-    # Convert prcp_df to dictionary
+    # Convert prcp_df to dictionary - have to first transpose the dataframe with .T
     prcp_dict = prcp_df.T.to_dict('list')
     
     return jsonify(prcp_dict)
 
 @app.route("/api/v1.0/stations")
 def stations():
-    # Stations query
+    # Stations data query - matches jupyter notebook
     session = Session(engine)
     station_table = (session
                         .query(Station.id, Station.station, Station.name,
                                Station.latitude, Station.longitude, Station.elevation)
                         .all())
+    # Create list of dictionaries that display information for all stations
     station_list = []
     for id, station, name, latitude, longitude, elevation in station_table:
         station_dict = {}
@@ -87,29 +91,34 @@ def tobs():
     tobs_data = (session
                     .query(Measurement.date, Measurement.tobs)
                     .filter(Measurement.station == station_observations_df.Station[0])
-                    .filter(Measurement.date >= '2016-08-23')
-                    .filter(Measurement.date <= '2017-08-23')
+                    .filter(Measurement.date >= '2016-08-23') # Dates calulcated in jupyter notebook
+                    .filter(Measurement.date <= '2017-08-23') # Dates calculated in jupyter notebook
                     .order_by(Measurement.date)
                     .all())
     tobs_df = pd.DataFrame(tobs_data, columns = ['Date', 'Temp_Observations'])
     tobs_df.set_index('Date', inplace = True)
 
-    # Convert tobs_df to dictionary
+    # Convert tobs_df to dictionary - first have to transpose dataframe using .T
     tobs_dict = tobs_df.T.to_dict('list')
     
     return jsonify(tobs_dict)
 
 @app.route("/api/v1.0/<user_start>")
+# Display min, max, and avg temp for each date from user's input to final date (8/23/2017)
 def date_range_start_only(user_start):
     session = Session(engine)
     
+    # Use try-except to protect from user format error
     try:
         loop_date = dt.datetime.strptime(str(user_start), '%Y%m%d')
 
         results_list = []
 
+        # Make sure user input is within the data range of dates
         if loop_date > dt.datetime(2017, 8, 23):
             return jsonify({'error': 'no data beyond 2017-08-23'})
+        
+        # Create list of dictionaries that displays temperature data for all applicable dates
         else:
             while loop_date <= dt.datetime(2017, 8, 23):
                 loop_date_string = loop_date.strftime('%Y-%m-%d')
@@ -134,6 +143,7 @@ def date_range_start_only(user_start):
         return jsonify({'error': 'date given must be in format YYYYmmdd'})
 
 @app.route("/api/v1.0/<range_start>/<range_end>")
+# Same as above, except user now specifies the end date in addtion to the start date
 def date_range(range_start, range_end):
     session = Session(engine)
     
